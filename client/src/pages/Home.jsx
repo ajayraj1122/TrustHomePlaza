@@ -133,20 +133,48 @@
 //   );
 // }
 
+
 import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { Swiper, SwiperSlide } from 'swiper/react';
-import { Navigation } from 'swiper/modules';
-import SwiperCore from 'swiper';
-import 'swiper/css/bundle';
+import { Navigation, Autoplay } from 'swiper/modules';
+import 'swiper/css';
+import 'swiper/css/navigation';
+import 'swiper/css/autoplay';
 import ListingItem from '../components/ListingItem';
 
 export default function Home() {
   const [offerListings, setOfferListings] = useState([]);
   const [saleListings, setSaleListings] = useState([]);
   const [rentListings, setRentListings] = useState([]);
-  SwiperCore.use([Navigation]);
   
+  // Gallery images for the auto-swiper
+  const galleryImages = [
+    'https://images.unsplash.com/photo-1568605114967-8130f3a36994?w=800&auto=format&fit=crop&q=60',
+    'https://images.unsplash.com/photo-1564013799919-ab600027ffc6?w=800&auto=format&fit=crop&q=60',
+    'https://images.unsplash.com/photo-1570129477492-45c003edd2be?w=800&auto=format&fit=crop&q=60',
+    'https://images.unsplash.com/photo-1600596542815-ffad4c1539a9?w=800&auto=format&fit=crop&q=60',
+    'https://images.unsplash.com/photo-1600607687939-ce8a6c25118c?w=800&auto=format&fit=crop&q=60',
+    'https://images.unsplash.com/photo-1613977257363-707ba9348227?w=800&auto=format&fit=crop&q=60',
+    'https://images.unsplash.com/photo-1613545325278-f24b0cae1224?w=800&auto=format&fit=crop&q=60',
+    'https://images.unsplash.com/photo-1605276373954-0c4a0dac5cc0?w=800&auto=format&fit=crop&q=60',
+    'https://images.unsplash.com/photo-1600566753086-00f18fb6b3ea?w=800&auto=format&fit=crop&q=60',
+    'https://images.unsplash.com/photo-1600585154340-be6161a56a0c?w=800&auto=format&fit=crop&q=60'
+  ];
+  
+  // Helper function to get correct image URL for background
+  const getBackgroundImageUrl = (url) => {
+    if (!url) return 'https://images.unsplash.com/photo-1568605114967-8130f3a36994?w=800&auto=format&fit=crop&q=60';
+    
+    if (url.startsWith('http')) {
+      return url;
+    }
+    if (url.startsWith('/uploads')) {
+      return `${window.location.origin}${url}`;
+    }
+    return url;
+  };
+
   useEffect(() => {
     const fetchOfferListings = async () => {
       try {
@@ -206,21 +234,49 @@ export default function Home() {
         </Link>
       </div>
 
+      {/* Auto-swiping Gallery */}
+      <div className='max-w-6xl mx-auto mb-10'>
+        <Swiper
+          modules={[Autoplay]}
+          autoplay={{
+            delay: 2000,
+            disableOnInteraction: false,
+          }}
+          loop={true}
+          slidesPerView={1}
+          spaceBetween={0}
+          className="h-[400px] rounded-lg overflow-hidden"
+        >
+          {galleryImages.map((image, index) => (
+            <SwiperSlide key={index}>
+              <div
+                style={{
+                  background: `url(${getBackgroundImageUrl(image)}) center no-repeat`,
+                  backgroundSize: 'cover',
+                }}
+                className='h-full w-full'
+              ></div>
+            </SwiperSlide>
+          ))}
+        </Swiper>
+      </div>
+
       {/* Swiper */}
       {offerListings && offerListings.length > 0 && (
-        <Swiper navigation>
+        <Swiper
+          modules={[Navigation]}
+          navigation={true}
+          loop={true}
+          className="h-[500px]"
+        >
           {offerListings.map((listing) => (
             <SwiperSlide key={listing._id}>
               <div
                 style={{
-                  background: `url(${
-                    listing.imageUrls[0] && listing.imageUrls[0].startsWith('/uploads')
-                      ? `${window.location.origin}${listing.imageUrls[0]}`
-                      : listing.imageUrls[0]
-                  }) center no-repeat`,
+                  background: `url(${getBackgroundImageUrl(listing.imageUrls?.[0])}) center no-repeat`,
                   backgroundSize: 'cover',
                 }}
-                className='h-[500px]'
+                className='h-full w-full'
               ></div>
             </SwiperSlide>
           ))}

@@ -331,6 +331,12 @@ export default function Profile() {
   }, [file]);
 
   const handleFileUpload = async (file) => {
+    // Check file size on client side first
+    if (file.size > 2 * 1024 * 1024) {
+      setFileUploadError('Error Image upload (image must be less than 2 mb)');
+      return;
+    }
+
     setUploading(true);
     setFileUploadError(false);
 
@@ -343,20 +349,34 @@ export default function Profile() {
         body: uploadFormData,
       });
 
-      const data = await res.json();
-      
-      if (data.success === false) {
-        setFileUploadError(true);
+      if (!res.ok) {
+        const errorData = await res.json().catch(() => ({ message: 'Server error' }));
+        setFileUploadError(errorData.message || 'Error Image upload (image must be less than 2 mb)');
         setUploading(false);
         return;
       }
 
-      // Update both formData and dispatch to Redux store
+      const data = await res.json();
+      
+      if (data.success === false) {
+        setFileUploadError(data.message || 'Error Image upload (image must be less than 2 mb)');
+        setUploading(false);
+        return;
+      }
+
+      // Update both formData and dispatch to Redux store with the new avatar URL
+      const updatedUserData = {
+        ...currentUser,
+        ...data,
+        avatar: data.avatar
+      };
+      
       setFormData({ ...formData, avatar: data.avatar });
-      dispatch(updateUserSuccess(data));
+      dispatch(updateUserSuccess(updatedUserData));
       setUploading(false);
     } catch (error) {
-      setFileUploadError(true);
+      console.error('Upload error:', error);
+      setFileUploadError('Error Image upload (image must be less than 2 mb)');
       setUploading(false);
     }
   };
@@ -475,14 +495,23 @@ export default function Profile() {
         />
         <img
           onClick={() => fileRef.current.click()}
-          src={formData.avatar || currentUser.avatar || 'https://cdn.pixabay.com/photo/2015/10/05/22/37/blank-profile-picture-973460_1280.png'}
+          src={
+            formData.avatar 
+              ? (formData.avatar.startsWith('http') ? formData.avatar : `http://localhost:3000${formData.avatar}`)
+              : currentUser.avatar 
+                ? (currentUser.avatar.startsWith('http') ? currentUser.avatar : `http://localhost:3000${currentUser.avatar}`)
+                : 'https://cdn.pixabay.com/photo/2015/10/05/22/37/blank-profile-picture-973460_1280.png'
+          }
           alt='profile'
           className='rounded-full h-24 w-24 object-cover cursor-pointer self-center mt-2'
+          onError={(e) => {
+            e.target.src = 'https://cdn.pixabay.com/photo/2015/10/05/22/37/blank-profile-picture-973460_1280.png';
+          }}
         />
         <p className='text-sm self-center'>
           {fileUploadError ? (
             <span className='text-red-700'>
-              Error Image upload (image must be less than 2 mb)
+              {fileUploadError}
             </span>
           ) : uploading ? (
             <span className='text-slate-700'>Uploading...</span>

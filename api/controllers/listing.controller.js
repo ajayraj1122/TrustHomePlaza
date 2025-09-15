@@ -112,54 +112,27 @@
 //     next(error);
 //   }
 // };
-
 import Listing from '../models/listing.model.js';
 import { errorHandler } from '../utils/error.js';
-import multer from 'multer';
 import path from 'path';
 import fs from 'fs';
-
-// Configure multer for file uploads
-const storage = multer.diskStorage({
-  destination: function (req, file, cb) {
-    const uploadPath = './uploads/listings/';
-    // Create directory if it doesn't exist
-    if (!fs.existsSync(uploadPath)) {
-      fs.mkdirSync(uploadPath, { recursive: true });
-    }
-    cb(null, uploadPath);
-  },
-  filename: function (req, file, cb) {
-    // Generate unique filename
-    const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1E9);
-    cb(null, 'listing-' + uniqueSuffix + path.extname(file.originalname));
-  }
-});
-
-const upload = multer({ 
-  storage: storage,
-  limits: {
-    fileSize: 2 * 1024 * 1024 // 2MB limit per file
-  },
-  fileFilter: function (req, file, cb) {
-    // Check file type
-    if (file.mimetype.startsWith('image/')) {
-      cb(null, true);
-    } else {
-      cb(new Error('Only image files are allowed!'), false);
-    }
-  }
-});
-
-export const uploadListingImages = upload.array('images', 6);
 
 export const createListing = async (req, res, next) => {
   try {
     const listingData = { ...req.body };
     
-    // If files were uploaded, add their paths to imageUrls
-    if (req.files && req.files.length > 0) {
-      listingData.imageUrls = req.files.map(file => `/uploads/listings/${file.filename}`);
+    // Parse imageUrls if it's a string (from form data)
+    if (typeof listingData.imageUrls === 'string') {
+      try {
+        listingData.imageUrls = JSON.parse(listingData.imageUrls);
+      } catch (parseError) {
+        listingData.imageUrls = [];
+      }
+    }
+    
+    // Ensure imageUrls is an array
+    if (!Array.isArray(listingData.imageUrls)) {
+      listingData.imageUrls = [];
     }
     
     const listing = await Listing.create(listingData);
@@ -184,9 +157,11 @@ export const deleteListing = async (req, res, next) => {
     // Delete associated image files
     if (listing.imageUrls && listing.imageUrls.length > 0) {
       listing.imageUrls.forEach(imageUrl => {
-        const imagePath = path.join('.', imageUrl);
-        if (fs.existsSync(imagePath)) {
-          fs.unlinkSync(imagePath);
+        if (imageUrl.startsWith('/uploads/listings/')) {
+          const imagePath = path.join(process.cwd(), imageUrl);
+          if (fs.existsSync(imagePath)) {
+            fs.unlinkSync(imagePath);
+          }
         }
       });
     }
@@ -208,17 +183,9 @@ export const updateListing = async (req, res, next) => {
   }
 
   try {
-    const updateData = { ...req.body };
-    
-    // If new files were uploaded, add their paths
-    if (req.files && req.files.length > 0) {
-      const newImageUrls = req.files.map(file => `/uploads/listings/${file.filename}`);
-      updateData.imageUrls = listing.imageUrls.concat(newImageUrls);
-    }
-
     const updatedListing = await Listing.findByIdAndUpdate(
       req.params.id,
-      updateData,
+      req.body,
       { new: true }
     );
     res.status(200).json(updatedListing);
@@ -227,28 +194,41 @@ export const updateListing = async (req, res, next) => {
   }
 };
 
+export const uploadListingImages = async (req, res, next) => {
+  try {
+    console.log('Upload request received');
+    console.log('Files:', req.files);
+    
+    if (!req.files || req.files.length === 0) {
+      console.log('No files received');
+      return res.status(400).json({ message: 'No images uploaded' });
+    }
+
+    const imageUrls = req.files.map(file => {
+      console.log('Processing file:', file.filename);
+      // Ensure correct path: /uploads/listings/ (with 's')
+      return `/uploads/listings/${file.filename}`;
+    });
+    
+    console.log('Returning image URLs:', imageUrls);
+    res.status(200).json({ imageUrls });
+  } catch (error) {
+    console.error('Upload error:', error);
+    next(errorHandler(500, 'Image upload failed'));
+  }
+};
+
 export const deleteListingImage = async (req, res, next) => {
   try {
-    const { listingId, imageUrl } = req.body;
-    const listing = await Listing.findById(listingId);
+    const { imageUrl } = req.body;
     
-    if (!listing) {
-      return next(errorHandler(404, 'Listing not found!'));
-    }
-    
-    if (req.user.id !== listing.userRef) {
-      return next(errorHandler(401, 'You can only modify your own listings!'));
-    }
-
     // Remove image from filesystem
-    const imagePath = path.join('.', imageUrl);
-    if (fs.existsSync(imagePath)) {
-      fs.unlinkSync(imagePath);
+    if (imageUrl.startsWith('/uploads/listings/')) {
+      const imagePath = path.join(process.cwd(), imageUrl);
+      if (fs.existsSync(imagePath)) {
+        fs.unlinkSync(imagePath);
+      }
     }
-
-    // Remove image URL from listing
-    listing.imageUrls = listing.imageUrls.filter(url => url !== imageUrl);
-    await listing.save();
 
     res.status(200).json({ message: 'Image deleted successfully' });
   } catch (error) {

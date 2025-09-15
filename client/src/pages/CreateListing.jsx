@@ -369,8 +369,7 @@
 //     </main>
 //   );
 // }
-
-import { useState } from 'react';
+import React, { useState } from 'react';
 import { useSelector } from 'react-redux';
 import { useNavigate } from 'react-router-dom';
 
@@ -378,8 +377,12 @@ export default function CreateListing() {
   const { currentUser } = useSelector((state) => state.user);
   const navigate = useNavigate();
   const [files, setFiles] = useState([]);
+  const [imageUploadError, setImageUploadError] = useState(false);
+  const [uploading, setUploading] = useState(false);
+  const [error, setError] = useState(false);
+  const [loading, setLoading] = useState(false);
+
   const [formData, setFormData] = useState({
-    imageUrls: [],
     name: '',
     description: '',
     address: '',
@@ -391,71 +394,130 @@ export default function CreateListing() {
     offer: false,
     parking: false,
     furnished: false,
+    imageUrls: [],
   });
-  const [imageUploadError, setImageUploadError] = useState(false);
-  const [uploading, setUploading] = useState(false);
-  const [error, setError] = useState(false);
-  const [loading, setLoading] = useState(false);
 
-  const handleImageSubmit = async (e) => {
-    e.preventDefault();
-    if (files.length > 0 && files.length + formData.imageUrls.length <= 6) {
-      setUploading(true);
-      setImageUploadError(false);
-      
-      const uploadFormData = new FormData();
-      for (let i = 0; i < files.length; i++) {
-        uploadFormData.append('images', files[i]);
-      }
+const getImageUrl = (url) => {
+  if (!url) return 'https://53.fs1.hubspotusercontent-na1.net/hub/53/hubfs/Sales_Blog/real-estate-business-compressor.jpg?width=595&height=400&name=real-estate-business-compressor.jpg';
+  
+  if (url.startsWith('http')) {
+    return url;
+  }
+  if (url.startsWith('/uploads/listings/')) {
+    return `${window.location.origin}${url}`;
+  }
+  if (url.startsWith('/uploads')) {
+    return `${window.location.origin}${url}`;
+  }
+  return url;
+};
 
-      try {
-        const res = await fetch('/api/listing/upload-images', {
-          method: 'POST',
-          body: uploadFormData,
-        });
-        
-        if (res.ok) {
-          const data = await res.json();
-          setFormData({
-            ...formData,
-            imageUrls: formData.imageUrls.concat(data.imageUrls),
-          });
-          setImageUploadError(false);
-        } else {
-          setImageUploadError('Image upload failed (2 mb max per image)');
-        }
-      } catch (error) {
-        setImageUploadError('Image upload failed (2 mb max per image)');
-      }
-      
-      setUploading(false);
-    } else {
-      setImageUploadError('You can only upload 6 images per listing');
-      setUploading(false);
+  const handleImageChange = (e) => {
+    const selectedFiles = Array.from(e.target.files);
+    
+    // Validate file types
+    const validTypes = ['image/jpeg', 'image/png', 'image/webp'];
+    const invalidFiles = selectedFiles.filter(file => !validTypes.includes(file.type));
+    
+    if (invalidFiles.length > 0) {
+      setImageUploadError('Only JPEG, PNG, and WebP images are allowed');
+      return;
     }
+    
+    // Validate file sizes
+    const oversizedFiles = selectedFiles.filter(file => file.size > 5 * 1024 * 1024);
+    if (oversizedFiles.length > 0) {
+      setImageUploadError('Images must be less than 5MB each');
+      return;
+    }
+    
+    setFiles(selectedFiles);
+    setImageUploadError(false);
   };
 
-  const handleRemoveImage = async (index) => {
-    const imageUrl = formData.imageUrls[index];
+ const handleImageSubmit = async (e) => {
+  e.preventDefault();
+  
+  // If no files selected but we need images, use defaults
+  if ((!files || files.length === 0) && formData.imageUrls.length === 0) {
+    console.log('No images selected, using default images');
     
-    try {
-      await fetch('/api/listing/delete-image', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          listingId: 'temp',
-          imageUrl: imageUrl,
-        }),
-      });
-    } catch (error) {
-      console.log('Error deleting image:', error);
-    }
-
+    // Use default image URLs
+    const defaultImageUrls = [
+      '/uploads/listings/house1.jpg',
+      '/uploads/listings/house11.jpg',
+      '/uploads/listings/house111.jpg'
+    ];
+    
     setFormData({
       ...formData,
-      imageUrls: formData.imageUrls.filter((_, i) => i !== index),
+      imageUrls: defaultImageUrls
+    });
+    
+    setImageUploadError(false);
+    return;
+  }
+  
+  if (files.length > 0 && files.length + formData.imageUrls.length <= 6) {
+    setUploading(true);
+    setImageUploadError(false);
+
+    const uploadFormData = new FormData();
+    for (let i = 0; i < files.length; i++) {
+      uploadFormData.append('images', files[i]);
+    }
+
+    try {
+      const res = await fetch('/api/listing/upload-images', {
+        method: 'POST',
+        body: uploadFormData,
+      });
+
+      const data = await res.json();
+
+      if (res.ok) {
+        setFormData({
+          ...formData,
+          imageUrls: formData.imageUrls.concat(data.imageUrls),
+        });
+        setImageUploadError(false);
+        document.getElementById('images').value = '';
+        setFiles([]);
+      } else {
+        // If upload fails, use default images
+        console.log('Upload failed, using default images:', data.message);
+        useDefaultImages();
+      }
+    } catch (error) {
+      console.error('Upload error, using default images:', error);
+      useDefaultImages();
+    }
+
+    setUploading(false);
+  } else {
+    setImageUploadError('You can only upload 6 images per listing');
+    setUploading(false);
+  }
+};
+
+// Helper function to use default images
+const useDefaultImages = () => {
+  const defaultImageUrls = [
+    'https://images.unsplash.com/photo-1568605114967-8130f3a36994?w=500&auto=format&fit=crop&q=60',
+    'https://images.unsplash.com/photo-1570129477492-45c003edd2be?w=500&auto=format&fit=crop&q=60',
+    'https://images.unsplash.com/photo-1513584684374-8bab748fbf90?w=500&auto=format&fit=crop&q=60'
+  ];
+  
+  setFormData({
+    ...formData,
+    imageUrls: formData.imageUrls.length > 0 ? formData.imageUrls : defaultImageUrls
+  });
+  setImageUploadError('Using default images.');
+};
+  const handleRemoveImage = (url) => {
+    setFormData({
+      ...formData,
+      imageUrls: formData.imageUrls.filter((image) => image !== url),
     });
   };
 
@@ -490,46 +552,69 @@ export default function CreateListing() {
     }
   };
 
-  const handleSubmit = async (e) => {
-    e.preventDefault();
-    try {
-      if (formData.imageUrls.length < 1)
-        return setError('You must upload at least one image');
-      if (+formData.regularPrice < +formData.discountPrice)
-        return setError('Discount price must be lower than regular price');
-      setLoading(true);
-      setError(false);
+ const handleSubmit = async (e) => {
+  e.preventDefault();
+  
+  // If no images, use defaults
+  if (formData.imageUrls.length < 1) {
+    console.log('No images, using default images');
+    const defaultImageUrls = [
+      '/uploads/listings/house1.jpg',
+      '/uploads/listings/house11.jpg',
+      '/uploads/listings/house111.jpg'
+    ];
+    
+    setFormData({
+      ...formData,
+      imageUrls: defaultImageUrls
+    });
+    
+    // Continue with submission after setting defaults
+    setTimeout(() => {
+      handleSubmit(e); // Recursive call with updated formData
+    }, 100);
+    return;
+  }
+  
+  if (+formData.regularPrice < +formData.discountPrice) {
+    return setError('Discount price must be less than regular price');
+  }
+  
+  setError(false);
+  setLoading(true);
 
-      const res = await fetch('/api/listing/create', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          ...formData,
-          userRef: currentUser._id,
-        }),
-      });
-      
-      const data = await res.json();
+  try {
+    const res = await fetch('/api/listing/create', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        ...formData,
+        userRef: currentUser._id,
+      }),
+    });
+    
+    const data = await res.json();
+    if (data.success === false) {
+      setError(data.message);
       setLoading(false);
-      if (data.success === false) {
-        setError(data.message);
-      } else {
-        navigate(`/listing/${data._id}`);
-      }
-    } catch (error) {
-      setError(error.message);
-      setLoading(false);
+      return;
     }
-  };
-
+    
+    setLoading(false);
+    navigate(`/listing/${data._id}`);
+  } catch (error) {
+    setError(error.message);
+    setLoading(false);
+  }
+};
   return (
     <main className='p-3 max-w-4xl mx-auto'>
       <h1 className='text-3xl font-semibold text-center my-7'>
         Create a Listing
       </h1>
-      <form onSubmit={handleSubmit} className='flex flex-col sm:flex-row gap-4'>
+      <form onSubmit={handleSubmit} className='flex flex-col sm:flex-row gap-6'>
         <div className='flex flex-col gap-4 flex-1'>
           <input
             type='text'
@@ -679,61 +764,77 @@ export default function CreateListing() {
             )}
           </div>
         </div>
-        <div className='flex flex-col flex-1 gap-4'>
-          <p className='font-semibold'>
-            Images:
-            <span className='font-normal text-gray-600 ml-2'>
-              The first image will be the cover (max 6)
-            </span>
-          </p>
-          <div className='flex gap-4'>
-            <input
-              onChange={(e) => setFiles(e.target.files)}
-              className='p-3 border border-gray-300 rounded w-full'
-              type='file'
-              id='images'
-              accept='image/*'
-              multiple
-            />
-            <button
-              type='button'
-              disabled={uploading}
-              onClick={handleImageSubmit}
-              className='p-3 text-green-700 border border-green-700 rounded uppercase hover:shadow-lg disabled:opacity-80'
-            >
-              {uploading ? 'Uploading...' : 'Upload'}
-            </button>
-          </div>
-          <p className='text-red-700 text-sm'>
-            {imageUploadError && imageUploadError}
-          </p>
+       <div className='flex flex-col flex-1 gap-4'>
+  <p className='font-semibold'>
+    Images:
+    <span className='font-normal text-gray-600 ml-2'>
+      The first image will be the cover (max 6)
+    </span>
+  </p>
+  
+  <div className='flex gap-4 items-center'>
+    <input
+      onChange={handleImageChange}
+      className='p-3 border border-gray-300 rounded w-full'
+      type='file'
+      id='images'
+      accept='image/jpeg,image/png,image/webp'
+      multiple
+    />
+    <button
+      type='button'
+      disabled={uploading || files.length === 0}
+      onClick={handleImageSubmit}
+      className='p-3 text-green-700 border border-green-700 rounded uppercase hover:shadow-lg disabled:opacity-80'
+    >
+      {uploading ? 'Uploading...' : 'Upload'}
+    </button>
+  </div>
+
+  {/* Add button to use default images */}
+  <button
+    type='button'
+    onClick={useDefaultImages}
+    className='p-3 text-blue-700 border border-blue-700 rounded uppercase hover:shadow-lg'
+  >
+    Use Default Images
+  </button>
+
+  <p className='text-red-700 text-sm'>
+    {imageUploadError ? imageUploadError : ''}
+  </p>
           {formData.imageUrls.length > 0 &&
             formData.imageUrls.map((url, index) => (
               <div
                 key={url}
-                className='flex justify-between p-3 border items-center'
+                className='flex justify-between p-3 border items-center rounded-lg'
               >
                 <img
-                  src={url}
+                  src={getImageUrl(url)}
                   alt='listing image'
                   className='w-20 h-20 object-contain rounded-lg'
+                  onError={(e) => {
+                    console.log('Image failed to load:', url);
+                    e.target.src = 'https://53.fs1.hubspotusercontent-na1.net/hub/53/hubfs/Sales_Blog/real-estate-business-compressor.jpg?width=595&height=400&name=real-estate-business-compressor.jpg';
+                  }}
                 />
                 <button
                   type='button'
-                  onClick={() => handleRemoveImage(index)}
+                  onClick={() => handleRemoveImage(url)}
                   className='p-3 text-red-700 rounded-lg uppercase hover:opacity-75'
                 >
                   Delete
                 </button>
               </div>
             ))}
+
           <button
             disabled={loading || uploading}
             className='p-3 bg-slate-700 text-white rounded-lg uppercase hover:opacity-95 disabled:opacity-80'
           >
             {loading ? 'Creating...' : 'Create listing'}
           </button>
-          {error && <p className='text-red-700 text-sm'>{error}</p>}
+          {error && <p className='text-red-500 text-sm'>{error}</p>}
         </div>
       </form>
     </main>

@@ -140,7 +140,7 @@ export const updateUser = async (req, res, next) => {
     if (req.file) {
       // Delete old avatar file if it exists and isn't the default
       const user = await User.findById(req.params.id);
-      if (user.avatar && !user.avatar.includes('pngtree.com')) {
+      if (user.avatar && !user.avatar.includes('pngtree.com') && !user.avatar.includes('pixabay.com')) {
         const oldAvatarPath = path.join('.', user.avatar);
         if (fs.existsSync(oldAvatarPath)) {
           fs.unlinkSync(oldAvatarPath);
@@ -159,7 +159,11 @@ export const updateUser = async (req, res, next) => {
 
     res.status(200).json(rest);
   } catch (error) {
-    next(error);
+    console.error('Update user error:', error);
+    return res.status(500).json({
+      success: false,
+      message: error.message || 'Server error'
+    });
   }
 };
 

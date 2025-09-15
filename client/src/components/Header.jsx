@@ -141,8 +141,15 @@ export default function Header() {
             {currentUser ? (
               <img
                 className='rounded-full h-7 w-7 object-cover'
-                src={currentUser.avatar || 'https://cdn.pixabay.com/photo/2015/10/05/22/37/blank-profile-picture-973460_1280.png'}
+                src={
+                  currentUser.avatar
+                    ? (currentUser.avatar.startsWith('http') ? currentUser.avatar : `http://localhost:3000${currentUser.avatar}`)
+                    : 'https://cdn.pixabay.com/photo/2015/10/05/22/37/blank-profile-picture-973460_1280.png'
+                }
                 alt='profile'
+                onError={(e) => {
+                  e.target.src = 'https://cdn.pixabay.com/photo/2015/10/05/22/37/blank-profile-picture-973460_1280.png';
+                }}
               />
             ) : (
               <li className='text-slate-700 hover:underline'>Sign in</li>
