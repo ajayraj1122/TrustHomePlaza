@@ -234,7 +234,7 @@ export default function Home() {
         </Link>
       </div>
 
-      {/* Auto-swiping Gallery */}
+      {/* Auto-swiping Gallery
       <div className='max-w-6xl mx-auto mb-10'>
         <Swiper
           modules={[Autoplay]}
@@ -259,7 +259,7 @@ export default function Home() {
             </SwiperSlide>
           ))}
         </Swiper>
-      </div>
+      </div> */}
 
       {/* Swiper */}
       {offerListings && offerListings.length > 0 && (
@@ -276,7 +276,7 @@ export default function Home() {
                   background: `url(${getBackgroundImageUrl(listing.imageUrls?.[0])}) center no-repeat`,
                   backgroundSize: 'cover',
                 }}
-                className='h-full w-full'
+                className='h-full w-max-6xl'
               ></div>
             </SwiperSlide>
           ))}
@@ -284,7 +284,7 @@ export default function Home() {
       )}
 
       {/* Listing results for offer, sale and rent */}
-      <div className='max-w-6xl mx-auto p-3 flex flex-col gap-8 my-10'>
+      <div className='max-w-6xl mx-auto p-2 flex flex-col gap-8 my-10'>
         {offerListings && offerListings.length > 0 && (
           <div className=''>
             <div className='my-3'>
